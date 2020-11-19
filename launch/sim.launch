@@ -1,0 +1,23 @@
+<launch>
+  <param name="/use_sim_time" value="true" />
+
+	<include file="$(find gazebo_ros)/launch/empty_world.launch">
+		<env name="GAZEBO_RESOURCE_PATH" value="$(find enph353_gazebo)"/>
+		<env name="GAZEBO_MODEL_PATH" value="$(find enph353_gazebo)/models"/>
+		<arg name="world_name" value="$(find enph353_gazebo)/worlds/353.world"/>
+		<arg name="gui" value="true"/>
+	</include>
+
+  <group ns="R1">
+    <param name="tf_prefix" value="R1_tf" />
+    <include file="$(find adeept_awr_gazebo)/launch/adeept_awr_urdf.launch">
+      <arg name="init_pose" value="-x 0.0 -y -0.85 -z 1.0 -R 0.0 -P 0.0 -Y 4.71" />
+      <arg name="robot_name"  value="R1" />
+    </include>
+
+    <include file="$(find controller)/launch/control.launch" />
+  </group>
+
+	<node pkg="enph353_gazebo" type="license_server.py" name="license_server" output="screen"/>
+
+</launch>

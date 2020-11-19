@@ -1,3 +1,9 @@
 <launch>
-  <node pkg="sandbox" type="steering.py" name="steer" output="screen" />
+    <!--If this argument is true, then the robot will wait for the reader node
+        to publish its first message before beginning to drive. -->
+    <arg name="lock_on_start" default="false"/>
+
+    <node pkg="controller" type="steering.py" name="steer" output="screen" >
+        <arg name="lock_on_start" value="$(arg lock_on_start)" />
+    </node>
 </launch>

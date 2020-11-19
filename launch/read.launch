@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="read" type="read_plates.py" name="read" output="screen" />
+</launch>

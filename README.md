@@ -3,8 +3,7 @@
 
 ## Run
 
-In order to generate the world you will also need this repository:
-`https://github.com/ENPH353/2020T1_competition`
+In order to generate the world you will also need [this repository](https://github.com/ENPH353/2020T1_competition).
 
 After launching the competition simulation, run in a terminal:
 `roslaunch controller control.launch`

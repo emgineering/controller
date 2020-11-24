@@ -94,10 +94,12 @@ class Reader:
             self.frame_count += 1
 
             # When the count reaches a sufficient threshold it submits the current plate guess.
-            if self.frame_count == self.buffer_frames:
-                spot, plate = self.decode_estimates()
-                print("Submitting guess: {}: {}".format(spot, plate))
-                self.submit()
+            if self.frame_count == self.buffer_frames:                
+                
+                # submit only if the queues are full, to prevent picking up random single-frame errors
+                if len(self.spot_estimate) == self.spot_estimate.maxlen:
+                    self.submit()
+                self.clear_estimates()
         else:
             # reset counter
             self.frame_count = 0
@@ -124,18 +126,21 @@ class Reader:
         plate = "{}{}".format("".join(letters), "".join(digits))
         return spot, plate
     
-    # Submits the average estimate of the plate reading to the scoring application, then resets
-    # the averaging buffers.
-    def submit(self):
-        spot, plate = self.decode_estimates()
-        self.send_message(spot, plate)
-
+    # clears the prediction buffers for parking spot number and plate readings
+    def clear_estimates(self):
         # clear estimates
         self.spot_estimate.clear()
         self.letter_estimates[0].clear()
         self.letter_estimates[1].clear()
         self.digit_estimates[0].clear()
         self.digit_estimates[1].clear()
+
+
+    # Submits the average estimate of the plate reading to the scoring application
+    def submit(self):
+        spot, plate = self.decode_estimates()
+        print("Submitting guess: {}: {}\n\t num guesses: {}".format(spot, plate, len(self.spot_estimate)))
+        self.send_message(spot, plate)
 
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions
     # (as long as they are of a certain quality)

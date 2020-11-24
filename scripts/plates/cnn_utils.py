@@ -1,5 +1,9 @@
 import numpy as np
 
+def confidence(oh):
+    return np.max(oh) / np.sum(oh)
+
+
 # Constructs a one-hot vector
 def one_hot(size, index):
     oh = np.zeros(size, dtype=float)

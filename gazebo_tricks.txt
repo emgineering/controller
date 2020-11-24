@@ -1,0 +1,3 @@
+rosservice call gazebo/reset_world
+
+rosrun rqt_image_view rqt_image_view

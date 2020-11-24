@@ -34,7 +34,7 @@ def get_blue_mask(image):
 
 
 def locate_blue_gray_split(image):
-    output = image.copy()
+    output = image[:]
 
     blue_mask = get_blue_mask(image) * 255
     gray_mask = get_gray_mask(image) * 255

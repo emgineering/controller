@@ -5,7 +5,7 @@ import sys
 
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 import message_filters
 
 import numpy as np
@@ -23,8 +23,8 @@ class Steer:
 
         # set these to adjust robot speed. 
         # (Note: may need to retrain model for large changes)
-        self.max_angular_vel = 1.2
-        self.max_linear_vel = 0.1
+        self.max_angular_vel = 2
+        self.max_linear_vel = 0.15
 
         # When true, prevents steering until a message to release is received
         self.lock = rospy.get_param('~lock_on_start')
@@ -50,9 +50,17 @@ class Steer:
         self.image_sub = message_filters.Subscriber('/R1/pi_camera/image_raw', Image)
         self.image_sub.registerCallback(self.process_image)
 
+        self.detector_sub = rospy.Subscriber('/R1/brake', Bool, self.receive_brake_update)
+
         self.run_monitor = rospy.Subscriber("/license_plate", String, self.receive_plate_update)
         self.latest_parking_spot = 0
 
+
+    def receive_brake_update(self, msg):
+        if msg.data:
+            self.enable_lock()
+        else:
+            self.release_lock()
 
     def receive_plate_update(self, msg):
         components = msg.data.split(',')
@@ -68,6 +76,7 @@ class Steer:
     def process_image(self, frame):
 
         if self.lock:
+            self.hard_stop()
             return
 
         # reduce image size to match model input
@@ -89,6 +98,7 @@ class Steer:
             result = self.model.predict(np.asarray([cv_image]))
 
             cmd_vel = self.transform_data(result[0])
+
             self.vel_pub.publish(cmd_vel)
 
 

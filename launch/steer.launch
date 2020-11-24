@@ -11,4 +11,18 @@
         <param name="lock_on_start" value="$(arg lock_on_start)" />
         <param name="use_latest_model" value="$(arg latest)" />
     </node>
+
+
+    <!-- Loads pedestrian/vehicle avoidance nodes if true. -->
+    <arg name="avoid" default="False" />
+
+    <group if="$(arg avoid)" >
+        <node name="avoid_pedestrians" pkg="controller" type="detect_pedestrians.py" output="screen" />
+        
+        <!-- 
+            <node name="avoid_vehicle" pkg="controller" type="detect_vehicle.py" output="screen" />
+        -->
+    </group> 
+
+
 </launch>

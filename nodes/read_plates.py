@@ -32,7 +32,7 @@ class Reader:
         # buffer is used to determine the most likely match.
         averaging_interval = 5
 
-        self.last_plate = 1
+        self.last_plate = 8
 
         # Rolling buffers that store the last `averaging_interval` predictions.
         self.spot_estimate = deque([], averaging_interval)

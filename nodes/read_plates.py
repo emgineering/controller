@@ -13,7 +13,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import models
 
-from std_msgs.msg import String
+from std_msgs.msg import String, Int32
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
@@ -30,16 +30,19 @@ class Reader:
 
         # The number of license plate readings that get stored in the rolling buffer - the mode of this
         # buffer is used to determine the most likely match.
-        averaging_interval = 10
+        averaging_interval = 5
+
+        self.last_plate = 1
 
         # Rolling buffers that store the last `averaging_interval` predictions.
         self.spot_estimate = deque([], averaging_interval)
         self.letter_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
         self.digit_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
 
-        # number of frames between detecting plates that will trigger a submission
-        self.buffer_frames = 50
-        self.frame_count = self.buffer_frames + 1
+        # number of frames between detecting plates that will trigger a submission/broadcast
+        self.submission_buffer_frames = 30
+        self.broadcast_buffer_frames = 10
+        self.frame_count = self.submission_buffer_frames + 1
 
         # load models
         self.session = tf.Session()
@@ -61,6 +64,7 @@ class Reader:
 
         # set license plate publisher
         self.reporter = rospy.Publisher("/license_plate", String, queue_size=10)
+        self.postion_reporter = rospy.Publisher("/prelim_spot_pred", Int32, queue_size=1)
         
         # allow subscriber in score tracker time to set up
         time.sleep(1)
@@ -75,6 +79,7 @@ class Reader:
         self.send_message(0, "AA11")
 
     def end_run(self, signal):
+        time.sleep(0.2)
         rospy.logfatal("run ended")
         self.send_message(-1, "AA11")
 
@@ -93,8 +98,12 @@ class Reader:
             # count the frames we have gone without seeing plate. 
             self.frame_count += 1
 
+            # if queue is full we can assume reasonable confidence in the current position
+            if self.frame_count == self.broadcast_buffer_frames and len(self.spot_estimate) == self.spot_estimate.maxlen:
+                self.broadcast_current_position()
+
             # When the count reaches a sufficient threshold it submits the current plate guess.
-            if self.frame_count == self.buffer_frames:                
+            elif self.frame_count == self.submission_buffer_frames:                
                 
                 # submit only if the queues are full, to prevent picking up random single-frame errors
                 if len(self.spot_estimate) == self.spot_estimate.maxlen:
@@ -104,6 +113,13 @@ class Reader:
             # reset counter
             self.frame_count = 0
             self.predict_plate(plate, h_distance)
+
+    # lets the driving modules know what we expect the current position to be
+    def broadcast_current_position(self):
+        spot_sum = np.sum(np.array(self.spot_estimate), axis=0)
+        spot = np.argmax(spot_sum) + 1
+        print("Broadcasting position: {}".format(spot))
+        self.postion_reporter.publish(spot)
 
     # Computes the average of the spot buffer and the plate buffers
     def decode_estimates(self):
@@ -139,8 +155,11 @@ class Reader:
     # Submits the average estimate of the plate reading to the scoring application
     def submit(self):
         spot, plate = self.decode_estimates()
-        print("Submitting guess: {}: {}\n\t num guesses: {}".format(spot, plate, len(self.spot_estimate)))
+        print("Submitting guess: {}: {}".format(spot, plate))
         self.send_message(spot, plate)
+
+        if spot == self.last_plate:
+            self.end_run()
 
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions
     # (as long as they are of a certain quality)

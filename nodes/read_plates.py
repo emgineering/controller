@@ -158,8 +158,8 @@ class Reader:
         print("Submitting guess: {}: {}".format(spot, plate))
         self.send_message(spot, plate)
 
-        if spot == self.last_plate:
-            self.end_run()
+        if int(spot) == self.last_plate:
+            self.end_run(0)
 
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions
     # (as long as they are of a certain quality)

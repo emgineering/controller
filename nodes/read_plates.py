@@ -64,6 +64,7 @@ class Reader:
 
         # set license plate publisher
         self.reporter = rospy.Publisher("/license_plate", String, queue_size=10)
+        self.plate_image_feed = rospy.Publisher("/processed_plates", Image, queue_size = 2)
         self.postion_reporter = rospy.Publisher("/prelim_spot_pred", Int32, queue_size=1)
         
         # allow subscriber in score tracker time to set up
@@ -111,6 +112,8 @@ class Reader:
                 self.clear_estimates()
         else:
             # reset counter
+
+            self.plate_image_feed.publish(self.bridge.cv2_to_imgmsg(plate, encoding="rgb8"))
             self.frame_count = 0
             self.predict_plate(plate, h_distance)
 

@@ -30,19 +30,22 @@ class Reader:
 
         # The number of license plate readings that get stored in the rolling buffer - the mode of this
         # buffer is used to determine the most likely match.
-        averaging_interval = 5
+        averaging_interval = 10
 
         self.last_plate = 8
 
         # Rolling buffers that store the last `averaging_interval` predictions.
+        self.clarity_values = deque([], averaging_interval)
         self.spot_estimate = deque([], averaging_interval)
         self.letter_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
         self.digit_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
 
         # number of frames between detecting plates that will trigger a submission/broadcast
-        self.submission_buffer_frames = 30
+        self.submission_buffer_frames = 10
         self.broadcast_buffer_frames = 10
         self.frame_count = self.submission_buffer_frames + 1
+
+        self.clarity_threshold = 0.8
 
         # load models
         self.session = tf.Session()
@@ -65,7 +68,7 @@ class Reader:
         # set license plate publisher
         self.reporter = rospy.Publisher("/license_plate", String, queue_size=10)
         self.plate_image_feed = rospy.Publisher("/processed_plates", Image, queue_size = 2)
-        self.postion_reporter = rospy.Publisher("/prelim_spot_pred", Int32, queue_size=1)
+        self.postion_reporter = rospy.Publisher("/current_spot_prediction", Int32, queue_size=1)
         
         # allow subscriber in score tracker time to set up
         time.sleep(1)
@@ -80,7 +83,7 @@ class Reader:
         self.send_message(0, "AA11")
 
     def end_run(self, signal):
-        time.sleep(0.2)
+        time.sleep(3)
         rospy.logfatal("run ended")
         self.send_message(-1, "AA11")
 
@@ -99,33 +102,87 @@ class Reader:
             # count the frames we have gone without seeing plate. 
             self.frame_count += 1
 
-            # if queue is full we can assume reasonable confidence in the current position
-            if self.frame_count == self.broadcast_buffer_frames and len(self.spot_estimate) == self.spot_estimate.maxlen:
-                self.broadcast_current_position()
-
             # When the count reaches a sufficient threshold it submits the current plate guess.
-            elif self.frame_count == self.submission_buffer_frames:                
+            if self.frame_count == self.submission_buffer_frames:   
+                print("buffer has {} guesses".format(len(self.spot_estimate))) 
+                self.submit()            
                 
                 # submit only if the queues are full, to prevent picking up random single-frame errors
-                if len(self.spot_estimate) == self.spot_estimate.maxlen:
-                    self.submit()
+                #if len(self.spot_estimate) == self.spot_estimate.maxlen:
+                #    self.submit()
                 self.clear_estimates()
-        else:
-            # reset counter
 
+            return
+
+        clarity = self.get_clarity(plate)
+        if clarity > self.clarity_threshold:
+            # reset counter
             self.plate_image_feed.publish(self.bridge.cv2_to_imgmsg(plate, encoding="rgb8"))
+            
             self.frame_count = 0
-            self.predict_plate(plate, h_distance)
+            self.predict_plate(plate, clarity)
+
+    def get_clarity(self, plate):
+        clarity = cv2.Laplacian(plate, cv2.CV_64F).var()
+        return clarity
+
 
     # lets the driving modules know what we expect the current position to be
     def broadcast_current_position(self):
         spot_sum = np.sum(np.array(self.spot_estimate), axis=0)
         spot = np.argmax(spot_sum) + 1
-        print("Broadcasting position: {}".format(spot))
         self.postion_reporter.publish(spot)
 
-    # Computes the average of the spot buffer and the plate buffers
+    # use a weighted average to pick the best guesses
     def decode_estimates(self):
+
+        clarity_vector = np.transpose(self.clarity_values)
+
+        spot_sum = np.dot(clarity_vector, self.spot_estimate)
+        spot = cnn_utils.one_hot_to_spot_number(spot_sum)
+
+        # Find the average letter sequence
+        letters = []
+        for i in range(len(self.letter_estimates)):
+            letter_sum = np.dot(clarity_vector, self.letter_estimates[i])
+            letters.append(cnn_utils.one_hot_to_char(letter_sum))
+        
+        # Find the average digit sequence
+        digits = []
+        for i in range(len(self.digit_estimates)):
+            digit_sum = np.dot(clarity_vector, self.digit_estimates[i])
+            digits.append(cnn_utils.one_hot_to_number(digit_sum))
+
+        plate = "{}{}".format("".join(letters), "".join(digits))
+        return spot, plate
+
+
+    # finds the highest-quality guess in the buffer and makes a prediction accordingly
+    def decode_estimates_clearest(self):
+        best_index = np.argmax(self.clarity_values)
+        print(best_index, self.clarity_values[best_index])
+
+        # Find the average spot number
+        spot = cnn_utils.one_hot_to_spot_number(self.spot_estimate[best_index])
+
+        # Find the best letter sequence
+        letters = []
+        for i in range(len(self.letter_estimates)):
+            letter_sum = self.letter_estimates[i][best_index]
+            letters.append(cnn_utils.one_hot_to_char(letter_sum))
+        
+        # Find the best digit sequence
+        digits = []
+        for i in range(len(self.digit_estimates)):
+            digit_sum = self.digit_estimates[i][best_index]
+            digits.append(cnn_utils.one_hot_to_number(digit_sum))
+
+        plate = "{}{}".format("".join(letters), "".join(digits))
+
+        return spot, plate
+
+    # Computes the average of the spot buffer and the plate buffers
+    def decode_estimates_average(self):
         # Find the average spot number
         spot_sum = np.sum(np.array(self.spot_estimate), axis=0)
         spot = cnn_utils.one_hot_to_spot_number(spot_sum)
@@ -148,6 +205,7 @@ class Reader:
     # clears the prediction buffers for parking spot number and plate readings
     def clear_estimates(self):
         # clear estimates
+        self.clarity_values.clear()
         self.spot_estimate.clear()
         self.letter_estimates[0].clear()
         self.letter_estimates[1].clear()
@@ -166,23 +224,27 @@ class Reader:
 
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions
     # (as long as they are of a certain quality)
-    def predict_plate(self, plate, h_distance):
+    def predict_plate(self, plate, clarity):
         # This method is often executed in a different thread than __init__, so we need
         # to recall the default graph.
         with self.graph.as_default():
             keras.backend.set_session(self.session)
             spot, lets, nums = preprocess_plate(plate)
 
-            spot_pred = self.spot_model.predict(np.asarray([spot]))
+            spot_pred = self.spot_model.predict(np.asarray([spot]))[0]
             if np.max(spot_pred) > 0.9:
                 self.spot_estimate.append(spot_pred)
+                self.clarity_values.append(clarity)
 
                 for i in range(2):
-                    let_pred = self.letter_model.predict(np.asarray([lets[i]]))
-                    num_pred = self.number_model.predict(np.asarray([nums[i]]))
+                    let_pred = self.letter_model.predict(np.asarray([lets[i]]))[0]
+                    num_pred = self.number_model.predict(np.asarray([nums[i]]))[0]
                     
                     self.letter_estimates[i].append(let_pred)
                     self.digit_estimates[i].append(num_pred)
+
+            else:
+                print("insufficient conficence")
 
 
 

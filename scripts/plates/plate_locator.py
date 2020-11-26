@@ -86,6 +86,23 @@ def find_plate(image):
         rect = order_points((p1,p2,p3,p4))
         (tl, tr, br, bl) = rect
 
+
+        # check if these points make sense
+        # are vertical lines vertical?
+
+        # check if skew is in a reasonable range
+        if np.abs(tl[1] - tr[1]) > 20 or np.abs(bl[1] - br[1]) > 20:
+            print("Plate location error: severely misaligned")
+            return None, None
+
+        if np.abs(tl[0] - bl[0]) > 5 or np.abs(tr[0] - br[0]) > 5:
+            print("Plate location error: vertical lines not vertical")
+            return None, None
+        
+        if np.abs(tl[0] - tr[0]) < 10:
+            print("Plate location error: Horizontal distance too small")
+            return None, None
+
         h_distance = np.abs(tl[0] - tr[0])
 
         # dimensions of original generated plate textures

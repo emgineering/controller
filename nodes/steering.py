@@ -5,7 +5,7 @@ import sys
 
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String, Bool
+from std_msgs.msg import String, Bool, Int32
 import message_filters
 
 import numpy as np
@@ -45,6 +45,12 @@ class Steer:
         self.target_image_shape = (w, h)
         self.bridge = CvBridge()
 
+
+        if self.lock:
+            # Ensure the license plate reader module has started up before continuing
+            rospy.wait_for_message("/license_plate", String)
+            self.release_lock()
+
         # set up topic subscribers and publishers
         self.vel_pub = rospy.Publisher('/R1/cmd_vel', Twist, queue_size=1, latch=False)
         self.image_sub = message_filters.Subscriber('/R1/pi_camera/image_raw', Image)
@@ -52,7 +58,7 @@ class Steer:
 
         self.detector_sub = rospy.Subscriber('/R1/brake', Bool, self.receive_brake_update)
 
-        self.run_monitor = rospy.Subscriber("/license_plate", String, self.receive_plate_update)
+        self.spot_sub = rospy.Subscriber("/prelim_spot_pred", Int32, self.receive_spot_update)
         self.latest_parking_spot = 0
 
 
@@ -62,16 +68,8 @@ class Steer:
         else:
             self.release_lock()
 
-    def receive_plate_update(self, msg):
-        components = msg.data.split(',')
-        spot_num = int(components[2])
-        
-        self.latest_parking_spot = spot_num
-
-        # Plate number 0 signals the start of the run
-        if spot_num == 0:
-            self.release_lock()
-
+    def receive_spot_update(self, msg):
+        self.latest_parking_spot = msg.data
 
     def process_image(self, frame):
 
@@ -85,12 +83,9 @@ class Steer:
 
 
         # predict which way to turn at next intersection based on latest plate value
-        if self.latest_parking_spot == 1 or self.latest_parking_spot == 6:
-            direction = [1,0,0]
-        elif self.latest_parking_spot == 8:
-            direction = [0,0,1]
-        else:
-            direction = [0,1,0]
+        direction = 0
+        if self.latest_parking_spot in [0, 1]:
+            direction = 1
 
         # decide velocity based on model prediction
         with self.graph.as_default():

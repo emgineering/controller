@@ -16,7 +16,7 @@ from keras import models
 
 
 # test current models, or best?
-best = True
+best = False
 
 
 path = os.path.dirname(os.path.realpath(__file__)) + "/"

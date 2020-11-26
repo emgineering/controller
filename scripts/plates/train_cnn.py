@@ -21,7 +21,7 @@ from cnn_utils import *
 path = os.path.dirname(os.path.realpath(__file__)) + "/"
 
 
-data_path = path + "../../data/distorted_plates/"
+data_path = path + "../../../harvest/data/"
 save_path = path + "../../models/"
 
 

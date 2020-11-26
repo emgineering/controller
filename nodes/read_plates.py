@@ -32,7 +32,7 @@ class Reader:
         # buffer is used to determine the most likely match.
         averaging_interval = 10
 
-        self.last_plate = 8
+        self.last_plate = 1
 
         # Rolling buffers that store the last `averaging_interval` predictions.
         self.clarity_values = deque([], averaging_interval)
@@ -41,7 +41,7 @@ class Reader:
         self.digit_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
 
         # number of frames between detecting plates that will trigger a submission/broadcast
-        self.submission_buffer_frames = 10
+        self.submission_buffer_frames = 30
         self.broadcast_buffer_frames = 10
         self.frame_count = self.submission_buffer_frames + 1
 

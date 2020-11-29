@@ -13,7 +13,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import models
 
-from std_msgs.msg import String, Int32
+from std_msgs.msg import String, Int32, Bool
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
@@ -32,7 +32,11 @@ class Reader:
         # buffer is used to determine the most likely match.
         averaging_interval = 10
 
-        self.last_plate = 1
+        # the spot number it ends the run after
+        self.final_plate = 8
+
+        # the last recorded parking spot number
+        self.latest_submitted_plate = 0
 
         # Rolling buffers that store the last `averaging_interval` predictions.
         self.clarity_values = deque([], averaging_interval)
@@ -41,7 +45,7 @@ class Reader:
         self.digit_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
 
         # number of frames between detecting plates that will trigger a submission/broadcast
-        self.submission_buffer_frames = 30
+        self.submission_buffer_frames = 10
         self.broadcast_buffer_frames = 10
         self.frame_count = self.submission_buffer_frames + 1
 
@@ -69,6 +73,7 @@ class Reader:
         self.reporter = rospy.Publisher("/license_plate", String, queue_size=10)
         self.plate_image_feed = rospy.Publisher("/processed_plates", Image, queue_size = 2)
         self.postion_reporter = rospy.Publisher("/current_spot_prediction", Int32, queue_size=1)
+        self.turn_signaller = rospy.Publisher("/turn_signal", Bool, queue_size=1)
         
         # allow subscriber in score tracker time to set up
         time.sleep(1)
@@ -78,12 +83,19 @@ class Reader:
         self.start_run()
 
 
+    def begin_turn(self):
+        print("Entering turn")
+        self.turn_signaller.publish(True)
+
+    def end_turn(self):
+        print("Finishing turn")
+        self.turn_signaller.publish(False)
+
     def start_run(self):
         rospy.logfatal("timer started")
         self.send_message(0, "AA11")
 
     def end_run(self, signal):
-        time.sleep(3)
         rospy.logfatal("run ended")
         self.send_message(-1, "AA11")
 
@@ -95,8 +107,9 @@ class Reader:
         cv_image = self.bridge.imgmsg_to_cv2(frame, desired_encoding="passthrough")
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
-        # transform raw feed into plate only, if it is recognizable
-        plate, h_distance = find_plate(cv_image)
+        # transform raw feed into plate only, if it is recognizable.
+        # plate_side gives which side of the center of the image the plate was found.
+        plate, plate_xlocation = find_plate(cv_image)
 
         if plate is None:
             # count the frames we have gone without seeing plate. 
@@ -105,7 +118,7 @@ class Reader:
             # When the count reaches a sufficient threshold it submits the current plate guess.
             if self.frame_count == self.submission_buffer_frames:   
                 print("buffer has {} guesses".format(len(self.spot_estimate))) 
-                self.submit()            
+                self.submit()
                 
                 # submit only if the queues are full, to prevent picking up random single-frame errors
                 #if len(self.spot_estimate) == self.spot_estimate.maxlen:
@@ -116,11 +129,25 @@ class Reader:
 
         clarity = self.get_clarity(plate)
         if clarity > self.clarity_threshold:
-            # reset counter
             self.plate_image_feed.publish(self.bridge.cv2_to_imgmsg(plate, encoding="rgb8"))
-            
-            self.frame_count = 0
+
             self.predict_plate(plate, clarity)
+            spot = int(self.decode_estimates()[0])
+
+            # Take special actions depending on plate number read:
+            if self.latest_submitted_plate == 1 and spot != 7:
+                self.clear_estimates()
+                print("Detected an unexpected plate number.")
+                return
+            elif spot == 1:
+                self.begin_turn()
+            elif spot == 7 and plate_xlocation > cv_image.shape[1] * 2 / 3:
+                self.end_turn()
+
+            # reset counter
+            self.frame_count = 0
+            self.broadcast_current_position()
+
 
     def get_clarity(self, plate):
         clarity = cv2.Laplacian(plate, cv2.CV_64F).var()
@@ -129,9 +156,13 @@ class Reader:
 
     # lets the driving modules know what we expect the current position to be
     def broadcast_current_position(self):
-        spot_sum = np.sum(np.array(self.spot_estimate), axis=0)
-        spot = np.argmax(spot_sum) + 1
-        self.postion_reporter.publish(spot)
+
+        if len(self.spot_estimate) > 5:
+            spot_sum = np.sum(np.array(self.spot_estimate), axis=0)
+            spot = np.argmax(spot_sum) + 1
+            self.postion_reporter.publish(spot)
+
+
 
     # use a weighted average to pick the best guesses
     def decode_estimates(self):
@@ -216,10 +247,13 @@ class Reader:
     # Submits the average estimate of the plate reading to the scoring application
     def submit(self):
         spot, plate = self.decode_estimates()
+
+        self.latest_submitted_plate = int(spot)
         print("Submitting guess: {}: {}".format(spot, plate))
         self.send_message(spot, plate)
 
-        if int(spot) == self.last_plate:
+        if int(spot) == self.final_plate:
+            time.sleep(5)
             self.end_run(0)
 
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions

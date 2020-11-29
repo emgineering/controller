@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="controller" type="detect_pedestrians.py" name="pedestrian_avoid" output="screen" />
+</launch>

@@ -23,8 +23,8 @@ class Steer:
 
         # set these to adjust robot speed. 
         # (Note: may need to retrain model for large changes)
-        self.max_angular_vel = 2
-        self.max_linear_vel = 0.15
+        self.max_angular_vel = 2  #1
+        self.max_linear_vel = 0.2  #0.15
 
         # When true, prevents steering until a message to release is received
         self.lock = rospy.get_param('~lock_on_start')
@@ -39,6 +39,9 @@ class Steer:
         use_latest = rospy.get_param('~use_latest_model')
         model_path = '/home/fizzer/ros_ws/src/controller/models/' + ('latest/' if use_latest else 'best/')
         self.model = load_model(model_path + 'steer.h5')
+        self.turn_model = load_model(model_path + 'steer_turn.h5')
+        self.active_model = self.model
+        self.turning = False
 
         # prepare image processing variables
         h, w = self.model.layers[0].input_shape[0][1:3]
@@ -59,8 +62,17 @@ class Steer:
         self.detector_sub = rospy.Subscriber('/R1/brake', Bool, self.receive_brake_update)
 
         self.spot_sub = rospy.Subscriber("/prelim_spot_pred", Int32, self.receive_spot_update)
+        self.turn_signal_receiver = rospy.Subscriber('/turn_signal', Bool, self.receive_turn_signal)
         self.latest_parking_spot = 0
 
+
+    def receive_turn_signal(self, msg):
+        self.active_model = self.turn_model if msg.data else self.model
+        self.turning = msg.data
+
+        if msg.data == False:
+            # on pulling out of the turn, slow down to keep pace with the truck
+            self.max_linear_vel = 0.15
 
     def receive_brake_update(self, msg):
         if msg.data:
@@ -81,16 +93,14 @@ class Steer:
         cv_image = self.bridge.imgmsg_to_cv2(frame, desired_encoding="passthrough")
         cv_image = cv2.resize(cv_image, self.target_image_shape)
 
-
-        # predict which way to turn at next intersection based on latest plate value
-        direction = 0
-        if self.latest_parking_spot in [0, 1]:
-            direction = 1
-
         # decide velocity based on model prediction
         with self.graph.as_default():
             set_session(self.session)
-            result = self.model.predict(np.asarray([cv_image]))
+
+            if self.turning:
+                result = self.turn_model.predict(np.asarray([cv_image / 255]))
+            else:
+                result = self.model.predict(np.asarray([cv_image]))
 
             cmd_vel = self.transform_data(result[0])
 

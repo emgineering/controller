@@ -103,8 +103,9 @@ def find_plate(image):
             print("Plate location error: Horizontal distance too small")
             return None, None
 
-        h_distance = np.abs(tl[0] - tr[0])
-
+        plate_xlocation = (tl[0] + tr[0])/2
+        #plate_side = 'left' if plate_location < image.shape[1] / 2 else 'right'
+        
         # dimensions of original generated plate textures
         maxWidth = 600
         maxHeight = 1800
@@ -125,6 +126,6 @@ def find_plate(image):
 
         warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
 
-        return warped, h_distance
+        return warped, plate_xlocation
     else:
         return None, None

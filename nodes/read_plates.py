@@ -31,9 +31,11 @@ class Reader:
         # The number of license plate readings that get stored in the rolling buffer - the mode of this
         # buffer is used to determine the most likely match.
         averaging_interval = 10
+        self.required_guesses = 3
 
         # the spot number it ends the run after
         self.final_plate = 8
+        self.on_final_submission = False
 
         # the last recorded parking spot number
         self.latest_submitted_plate = 0
@@ -82,6 +84,15 @@ class Reader:
         self.timer = rospy.Timer(rospy.Duration(239), self.end_run, oneshot=True)
         self.start_run()
 
+    def enough_guesses(self):
+        return len(self.spot_estimate) >= self.required_guesses
+
+    def log(self, msg, color, style):
+        bg_color = 40
+        print("\033[{};{};{}m{}\033[0;37;40m".format(color, style, bg_color, msg))
+
+    def log_main(self, msg):
+        self.log(msg, 36, 1) # cyan, bold
 
     def begin_turn(self):
         print("Entering turn")
@@ -98,6 +109,8 @@ class Reader:
     def end_run(self, signal):
         rospy.logfatal("run ended")
         self.send_message(-1, "AA11")
+        self.timer.shutdown()
+        self.sub.unregister()
 
     def send_message(self, position, plate):
         msg = ",".join([self.teamID, self.teamPassword, str(position), plate])
@@ -118,13 +131,12 @@ class Reader:
             # When the count reaches a sufficient threshold it submits the current plate guess.
             if self.frame_count == self.submission_buffer_frames:   
                 print("buffer has {} guesses".format(len(self.spot_estimate))) 
-                self.submit()
                 
-                # submit only if the queues are full, to prevent picking up random single-frame errors
-                #if len(self.spot_estimate) == self.spot_estimate.maxlen:
-                #    self.submit()
-                self.clear_estimates()
+                # submit only if there are a few guesses in the buffer, to prevent picking up random single-frame errors
+                if self.enough_guesses():
+                    self.submit()
 
+                self.clear_estimates()
             return
 
         clarity = self.get_clarity(plate)
@@ -132,21 +144,24 @@ class Reader:
             self.plate_image_feed.publish(self.bridge.cv2_to_imgmsg(plate, encoding="rgb8"))
 
             self.predict_plate(plate, clarity)
-            spot = int(self.decode_estimates()[0])
 
-            # Take special actions depending on plate number read:
-            if self.latest_submitted_plate == 1 and spot != 7:
-                self.clear_estimates()
-                print("Detected an unexpected plate number.")
-                return
-            elif spot == 1:
-                self.begin_turn()
-            elif spot == 7 and plate_xlocation > cv_image.shape[1] * 2 / 3:
-                self.end_turn()
+            # If reasonable confidence that the "plate" is not random error:
+            if self.enough_guesses():
+                spot = int(self.decode_estimates()[0])
 
-            # reset counter
-            self.frame_count = 0
-            self.broadcast_current_position()
+                # Take special actions depending on plate number read:
+                if self.latest_submitted_plate == 1 and spot != 7:
+                    self.clear_estimates()
+                    print("Detected an unexpected plate number.")
+                    return
+                elif spot == 1:
+                    self.begin_turn()
+                elif spot == 7 and plate_xlocation > cv_image.shape[1] * 2 / 3:
+                    self.end_turn()
+
+                # reset counter
+                self.frame_count = 0
+                self.broadcast_current_position()
 
 
     def get_clarity(self, plate):
@@ -191,7 +206,6 @@ class Reader:
     # finds the highest-quality guess in the buffer and makes a prediction accordingly
     def decode_estimates_clearest(self):
         best_index = np.argmax(self.clarity_values)
-        print(best_index, self.clarity_values[best_index])
 
         # Find the average spot number
         spot = cnn_utils.one_hot_to_spot_number(self.spot_estimate[best_index])
@@ -249,13 +263,21 @@ class Reader:
         spot, plate = self.decode_estimates()
 
         self.latest_submitted_plate = int(spot)
-        print("Submitting guess: {}: {}".format(spot, plate))
+        self.log_main("Submitting guess: {}: {}".format(spot, plate))
         self.send_message(spot, plate)
 
-        if int(spot) == self.final_plate:
-            time.sleep(5)
+        # After submitting plate "final_plate" (8), wait for one more submission before ending the run
+        if self.on_final_submission:
+            print("Final submission!")
+            time.sleep(0.2)
             self.end_run(0)
-
+            return
+            #self.finished_timer = rospy.Timer(rospy.Duration(10), self.end_run, oneshot=True)        
+        if int(spot) == self.final_plate:
+            self.on_final_submission = True
+            print("Next submission is the final one")
+            return
+        
     # Given a snapshot of the car's view, updates rolling buffers to store new plate predictions
     # (as long as they are of a certain quality)
     def predict_plate(self, plate, clarity):

@@ -79,57 +79,57 @@ class DriveOverride:
 
 
 
-class PedestrianDetector(DriveOverride):
+class VehicleDetector(DriveOverride):
 
     def __init__(self):
         DriveOverride.__init__(self)
-        self.previous_frame = None
-        self.red_threshold = 10000
-        self.noise_threshold = 120
-        self.movement_threshold = 100
-        self.pedestrian_has_crossed = False
+        self.gray_stop_threshold = 5000
+        self.gray_start_threshold = 2000
+
         
+
+    def get_gray_in_range(self, image):
+        low_thresh = 47
+        high_thresh = 77
+        low = image[:,:,0] > low_thresh
+        high = image[:,:,0] < high_thresh
+
+        # road: 81-85
+        # trees: 39-44
+        # stripes: 
+
+
+        bg = image[:,:,0] == image[:,:,1] # B == G
+        gr = image[:,:,1] == image[:,:,2] # G == R
+
+        mask = np.bitwise_and(np.bitwise_and(bg, gr), np.bitwise_and(low,high))
+        return mask.sum()
+
 
     def check_stop_condition(self, image):
 
-        red = np.bitwise_and(image[:,:,0] > image[:,:,2], image[:,:,0] > 250)
-        if red.sum() > self.red_threshold:
-            self.log("STOP: crosswalk detected")
-        return red.sum() > self.red_threshold
+        gray_pixels = self.get_gray_in_range(image)
+
+        if gray_pixels > self.gray_stop_threshold:
+            self.log("STOP: close to vehicle")
+            return True
+        return False
 
     def check_resume_condition(self, image):
 
-        if self.previous_frame is None:
-            self.previous_frame = image
-            return False
-
-        prev = cv2.cvtColor(self.previous_frame, cv2.COLOR_BGR2GRAY).astype('float32')
-        curr = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype('float32')
-
-        diff = np.absolute(prev - curr)
-        different_pixels = (diff > self.noise_threshold).sum()
-
-        self.previous_frame = image
-
-        if self.pedestrian_has_crossed and different_pixels == 0:
-            self.log("no motion detected; moving on")
-
-            # reset flag for next time
-            self.pedestrian_has_crossed = False
-            self.previous_frame = None
+        gray_pixels = self.get_gray_in_range(image)
+        
+        if gray_pixels < self.gray_start_threshold:
+            self.log("vehicle is far enough; moving on")
             return True
-
-        if not self.pedestrian_has_crossed and different_pixels > 200 and different_pixels < 300:
-            self.log("saw pedestrian cross street")
-            self.pedestrian_has_crossed = True
 
         return False
 
 
 if __name__ == '__main__':
-    rospy.init_node('pedestrian_detector', log_level=rospy.DEBUG)
+    rospy.init_node('vehicle_detector', log_level=rospy.DEBUG)
 
-    detect = PedestrianDetector()
+    detect = VehicleDetector()
 
     try:
         rospy.spin()

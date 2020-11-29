@@ -4,4 +4,6 @@
     </include>
     <include file="$(find controller)/launch/read.launch" />
     <include file="$(find controller)/launch/detect_pedestrians.launch" />
+    <include file="$(find controller)/launch/detect_vehicle.launch" />
+
 </launch>

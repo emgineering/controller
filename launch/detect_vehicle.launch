@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="controller" type="detect_vehicle.py" name="vehicle_avoid" output="screen" />
+</launch>

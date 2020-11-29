@@ -100,7 +100,7 @@ class Steer:
             if self.turning:
                 result = self.turn_model.predict(np.asarray([cv_image / 255]))
             else:
-                result = self.model.predict(np.asarray([cv_image]))
+                result = self.model.predict(np.asarray([cv_image / 255]))
 
             cmd_vel = self.transform_data(result[0])
 

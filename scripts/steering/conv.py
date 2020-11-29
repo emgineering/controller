@@ -15,7 +15,7 @@ from keras import Model
 from keras.utils import plot_model
 from keras import backend
 
-path = '/home/fizzer/ros_ws/src/harvest/turn_data/'
+path = '/home/fizzer/ros_ws/src/harvest/steer_data_b/'
 #path = '/home/fizzer/ros_ws/src/sandbox/data/harvested/'
 files = os.listdir(path)
 random.shuffle(files)
@@ -104,5 +104,5 @@ for i in range(20):
 
 model_path = '/home/fizzer/ros_ws/src/controller/models/'
 
-model.save(model_path + 'latest/steer_turn.h5')
-model.save(model_path + 'archive/steer_turn-{}.h5'.format(datetime.now()))
+model.save(model_path + 'latest/steer.h5')
+model.save(model_path + 'archive/steer-{}.h5'.format(datetime.now()))

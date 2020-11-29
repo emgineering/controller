@@ -15,13 +15,19 @@ from keras import Model
 from keras.utils import plot_model
 from keras import backend
 
-path = '/home/fizzer/ros_ws/src/harvest/steer_data_b/'
+path = '/home/fizzer/ros_ws/src/harvest/steer_data/'
 #path = '/home/fizzer/ros_ws/src/sandbox/data/harvested/'
 files = os.listdir(path)
 random.shuffle(files)
 
 #files = files[:1]
 
+
+def findzeros(filename):
+    return os.path.splitext(filename)[0].split(':')[2] == '0'
+
+files = filter(findzeros, files)
+print(files)
 
 epochs = 20
 

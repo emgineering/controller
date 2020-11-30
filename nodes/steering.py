@@ -23,8 +23,9 @@ class Steer:
 
         # set these to adjust robot speed. 
         # (Note: may need to retrain model for large changes)
-        self.max_angular_vel = 2  #1
-        self.max_linear_vel = 0.2  #0.15
+        self.speed_ratio = 0.1
+        self.max_angular_vel = 5  #1
+        self.max_linear_vel = self.speed_ratio * self.max_angular_vel  #0.15
 
         # When true, prevents steering until a message to release is received
         self.lock = rospy.get_param('~lock_on_start')
@@ -70,9 +71,10 @@ class Steer:
         self.active_model = self.turn_model if msg.data else self.model
         self.turning = msg.data
 
-        if msg.data == False:
+        if msg.data == True:
             # on pulling out of the turn, slow down to keep pace with the truck
             self.max_linear_vel = 0.15
+            self.max_angular_vel = self.max_linear_vel / self.speed_ratio
 
     def receive_brake_update(self, msg):
         if msg.data:

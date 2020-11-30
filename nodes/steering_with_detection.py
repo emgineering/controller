@@ -325,9 +325,6 @@ class PedestrianDetector(DriveOverride):
 
     def check_stop_condition(self):
 
-        if self.red_pixels > self.red_lower_thresh:
-            print(self.red_pixels)
-
         if self.red_pixels > self.red_threshold:
             self.log("STOP: crosswalk detected")
             return True

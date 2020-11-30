@@ -162,7 +162,7 @@ class Reader:
                     return
                 elif spot == 1:
                     self.begin_turn()
-                elif spot == 7 and plate_xlocation > cv_image.shape[1] * 2 / 3:
+                elif spot == 7 and plate_xlocation > cv_image.shape[1] / 2:
                     self.end_turn()
 
                 # reset counter

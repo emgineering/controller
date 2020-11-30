@@ -1,0 +1,7 @@
+<launch>
+    <include file="$(find controller)/launch/steer2.launch" >
+        <arg name="lock_on_start" value="True"/>
+    </include>
+    <include file="$(find controller)/launch/read.launch" />
+
+</launch>

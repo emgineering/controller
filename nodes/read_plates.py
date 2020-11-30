@@ -76,6 +76,7 @@ class Reader:
         self.plate_image_feed = rospy.Publisher("/processed_plates", Image, queue_size = 2)
         self.postion_reporter = rospy.Publisher("/current_spot_prediction", Int32, queue_size=1)
         self.turn_signaller = rospy.Publisher("/turn_signal", Bool, queue_size=1)
+        self.approaching_plate_pub = rospy.Publisher("/approaching_plate", Bool, queue_size=1)
         
         # allow subscriber in score tracker time to set up
         time.sleep(1)
@@ -137,7 +138,12 @@ class Reader:
                     self.submit()
 
                 self.clear_estimates()
+
+            self.approaching_plate_pub.publish(False)
+
             return
+
+        self.approaching_plate_pub.publish(True)
 
         clarity = self.get_clarity(plate)
         if clarity > self.clarity_threshold:

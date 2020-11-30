@@ -241,9 +241,9 @@ class VehicleDetector(DriveOverride):
         DriveOverride.__init__(self)
         self.gray_stop_threshold = 5000
         self.gray_slow_threshold = 2000
-        self.gray_start_threshold = 3500
+        self.gray_start_threshold = 5000
 
-        self.cooldown = 5
+        self.cooldown = 0
 
         self.gray_pixels = 0
 
@@ -265,22 +265,10 @@ class VehicleDetector(DriveOverride):
     def process_stopped(self, image):
         self.gray_pixels = self.get_gray_in_range(image)
 
-    def check_stop_condition(self):
-        if self.gray_pixels > self.gray_stop_threshold:
-            self.log("STOP: close to vehicle")
-            return True
-        return False
-
-    def check_resume_condition(self):
-        if self.gray_pixels < self.gray_start_threshold:
-            self.log("vehicle is far enough; moving on")
-            return True
-        return False
-
     def recommend_speed(self):
         gray = np.clip(self.gray_pixels, self.gray_slow_threshold, self.gray_stop_threshold)
-        return 1 - (gray - self.gray_slow_threshold) / (self.gray_stop_threshold - self.gray_slow_threshold)
-
+        result = 1 - np.tanh(np.pi * (gray - self.gray_slow_threshold) / (self.gray_stop_threshold - self.gray_slow_threshold))
+        return result
 
 class PedestrianDetector(DriveOverride):
 

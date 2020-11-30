@@ -24,7 +24,7 @@ class Steer:
         # set these to adjust robot speed. 
         # (Note: may need to retrain model for large changes)
         self.speed_ratio = 0.1
-        self.max_angular_vel = 5  #1
+        self.max_angular_vel = 4  #1
         self.max_linear_vel = self.speed_ratio * self.max_angular_vel  #0.15
 
         # When true, prevents steering until a message to release is received

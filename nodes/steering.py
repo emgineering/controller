@@ -73,7 +73,7 @@ class Steer:
 
         if msg.data == True:
             # on pulling out of the turn, slow down to keep pace with the truck
-            self.max_linear_vel = 0.15
+            self.max_linear_vel = 0.25
             self.max_angular_vel = self.max_linear_vel / self.speed_ratio
 
     def receive_brake_update(self, msg):

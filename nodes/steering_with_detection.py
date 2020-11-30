@@ -242,10 +242,12 @@ class VehicleDetector(DriveOverride):
         self.gray_stop_threshold = 5000
         self.gray_slow_threshold = 2000
         self.gray_start_threshold = 5000
-
+        self.gray_angular_threshold = 3000
+        
         self.cooldown = 0
 
         self.gray_pixels = 0
+        self.gray_position = 0
 
     def get_gray_in_range(self, image):
         low_thresh = 47
@@ -257,6 +259,10 @@ class VehicleDetector(DriveOverride):
         gr = image[:,:,1] == image[:,:,2] # G == R
 
         mask = np.bitwise_and(np.bitwise_and(bg, gr), np.bitwise_and(low,high))
+
+	M = cv2.moments(np.array(mask, dtype=np.uint8))
+	self.gray_position = int(M["m10"] / M["m00"])
+
         return mask.sum()
 
     def process_running(self, image):
@@ -267,8 +273,17 @@ class VehicleDetector(DriveOverride):
 
     def recommend_speed(self):
         gray = np.clip(self.gray_pixels, self.gray_slow_threshold, self.gray_stop_threshold)
-        result = 1 - np.tanh(np.pi * (gray - self.gray_slow_threshold) / (self.gray_stop_threshold - self.gray_slow_threshold))
-        return result
+
+        if gray > self.gray_angular_threshold:
+            # 1 means the car is far away, 0 means the car is dead ahead
+            gray_position_factor = np.tanh(np.abs(self.gray_position - 640.0)/640.0)/np.tanh(1)
+            rospy.logfatal(gray_position_factor)
+            return gray_position_factor
+        if gray <= self.gray_angular_threshold:
+            # 1 means the car is not visible, 0 means the car is filling the view
+            gray_mass_factor = 1 - 0.5 * np.tanh(np.pi * (gray - self.gray_slow_threshold) / (self.gray_stop_threshold - self.gray_slow_threshold))
+            rospy.logfatal(gray_mass_factor)
+            return gray_mass_factor
 
 class PedestrianDetector(DriveOverride):
 

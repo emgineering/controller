@@ -31,7 +31,7 @@ class Steer:
         # (Note: may need to retrain model for large changes)
 
         # increase speed_ratio if the robot is tending
-        self.speed_ratio = 15
+        self.speed_ratio = 17
         self.speed_percentage = 1
         self.update_base_speed(0.35)
 
@@ -83,7 +83,7 @@ class Steer:
         if self.current_loop == Loop.OUTER:
             # outer loop, viewing plate
             if msg.data:
-                self.update_base_speed(0.3)
+                self.update_base_speed(0.25)
             # outer loop, driving
             else:
                 self.update_base_speed(0.4)

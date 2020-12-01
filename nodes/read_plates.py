@@ -47,7 +47,7 @@ class Reader:
         self.digit_estimates = [deque([], averaging_interval), deque([], averaging_interval)]
 
         # number of frames between detecting plates that will trigger a submission/broadcast
-        self.submission_buffer_frames = 10
+        self.submission_buffer_frames = 5
         self.broadcast_buffer_frames = 10
         self.frame_count = self.submission_buffer_frames + 1
 

@@ -31,7 +31,7 @@ class Steer:
         # (Note: may need to retrain model for large changes)
 
         # increase speed_ratio if the robot is tending
-        self.speed_ratio = 13
+        self.speed_ratio = 15
         self.speed_percentage = 1
         self.update_base_speed(0.35)
 
@@ -86,14 +86,14 @@ class Steer:
                 self.update_base_speed(0.3)
             # outer loop, driving
             else:
-                self.update_base_speed(0.4)
+                self.update_base_speed(0.5)
         else:
             # inner loop, viewing plate
             if msg.data:
                 self.update_base_speed(0.25)
             # inner loop, driving
             else:
-                self.update_base_speed(0.3)
+                self.update_base_speed(0.4)
 
     def update_base_speed(self, new_base_linear_vel):
         self.base_speed = new_base_linear_vel
@@ -277,12 +277,10 @@ class VehicleDetector(DriveOverride):
         if gray > self.gray_angular_threshold:
             # 1 means the car is far away, 0 means the car is dead ahead
             gray_position_factor = np.tanh(np.abs(self.gray_position - 640.0)/640.0)/np.tanh(1)
-            rospy.logfatal(gray_position_factor)
             return gray_position_factor
         if gray <= self.gray_angular_threshold:
             # 1 means the car is not visible, 0 means the car is filling the view
             gray_mass_factor = 1 - 0.5 * np.tanh(np.pi * (gray - self.gray_slow_threshold) / (self.gray_stop_threshold - self.gray_slow_threshold))
-            rospy.logfatal(gray_mass_factor)
             return gray_mass_factor
 
 class PedestrianDetector(DriveOverride):

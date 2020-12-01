@@ -260,8 +260,10 @@ class VehicleDetector(DriveOverride):
 
         mask = np.bitwise_and(np.bitwise_and(bg, gr), np.bitwise_and(low,high))
 
-	M = cv2.moments(np.array(mask, dtype=np.uint8))
-	self.gray_position = int(M["m10"] / M["m00"])
+	    M = cv2.moments(np.array(mask, dtype=np.uint8))
+        self.gray_position = 1280
+        if M["m00"] != 0:
+	        self.gray_position = int(M["m10"] / M["m00"])
 
         return mask.sum()
 

@@ -86,14 +86,14 @@ class Steer:
                 self.update_base_speed(0.3)
             # outer loop, driving
             else:
-                self.update_base_speed(0.5)
+                self.update_base_speed(0.4)
         else:
             # inner loop, viewing plate
             if msg.data:
                 self.update_base_speed(0.25)
             # inner loop, driving
             else:
-                self.update_base_speed(0.4)
+                self.update_base_speed(0.3)
 
     def update_base_speed(self, new_base_linear_vel):
         self.base_speed = new_base_linear_vel
@@ -259,11 +259,11 @@ class VehicleDetector(DriveOverride):
         gr = image[:,:,1] == image[:,:,2] # G == R
 
         mask = np.bitwise_and(np.bitwise_and(bg, gr), np.bitwise_and(low,high))
-
-	    M = cv2.moments(np.array(mask, dtype=np.uint8))
+        
+        M = cv2.moments(np.array(mask, dtype=np.uint8))
         self.gray_position = 1280
         if M["m00"] != 0:
-	        self.gray_position = int(M["m10"] / M["m00"])
+            self.gray_position = int(M["m10"] / M["m00"])
 
         return mask.sum()
 

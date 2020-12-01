@@ -1,9 +1,7 @@
 <launch>
-    <include file="$(find controller)/launch/steer.launch" >
+    <include file="$(find controller)/launch/steer2.launch" >
         <arg name="lock_on_start" value="True"/>
     </include>
     <include file="$(find controller)/launch/read.launch" />
-    <include file="$(find controller)/launch/detect_pedestrians.launch" />
-    <include file="$(find controller)/launch/detect_vehicle.launch" />
 
 </launch>

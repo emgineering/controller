@@ -25,8 +25,8 @@ import plates.cnn_utils as cnn_utils
 class Reader:
     def __init__(self):
         # message credentials
-        self.teamID = 'best4eva'
-        self.teamPassword = 'password'
+        self.teamID = '428ous'
+        self.teamPassword = 'easierth'
 
         # The number of license plate readings that get stored in the rolling buffer - the mode of this
         # buffer is used to determine the most likely match.
